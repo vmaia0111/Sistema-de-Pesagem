@@ -33,8 +33,7 @@ Alertas Visuais e Sonoros:
 - Passo a passo
 - Clone o repositório:
 
-bash
-git clone https://github.com/vmaia0111/Sistema-de-Pesagem.git
+bash git clone https://github.com/vmaia0111/Sistema-de-Pesagem.git
 
 Crie um ambiente virtual (opcional, mas recomendado):
 
