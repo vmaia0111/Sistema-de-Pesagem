@@ -16,11 +16,11 @@ Autenticação de Usuário: Diferencia dois tipos de usuários:
 
 Alertas Visuais e Sonoros:
 
-Visual: O sistema altera o status e as cores da interface para indicar se o peso está dentro ou fora do intervalo especificado.
-Sonoro: Um alerta sonoro é emitido quando o peso está fora dos limites.
-Seleção de Modelos: Permite que os operadores escolham o cliente e o produto para iniciar o processo de pesagem.
+- Visual: O sistema altera o status e as cores da interface para indicar se o peso está dentro ou fora do intervalo especificado.
+- Sonoro: Um alerta sonoro é emitido quando o peso está fora dos limites.
+--Seleção de Modelos: Permite que os operadores escolham o cliente e o produto para iniciar o processo de pesagem.
 
-Tecnologias Utilizadas
+1. Tecnologias Utilizadas
 Python 3.12: Linguagem principal de desenvolvimento.
 PyQt5: Para a construção da interface gráfica.
 SQLite: Banco de dados local para armazenamento de clientes e produtos.
