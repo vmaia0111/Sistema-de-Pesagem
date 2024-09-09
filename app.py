@@ -313,7 +313,7 @@ class MainApp(QtWidgets.QMainWindow):
         weight = self.read_weight_from_serial()
         if weight is not None:
             self.label.setText(f'Peso: {weight:.3f} Kg')
-
+    
             # Verificação de peso e aviso visual e sonoro
             if weight < self.min_weight or weight > self.max_weight:
                 self.statusLabel.setText("Status: PESO FORA DO INTERVALO!")
