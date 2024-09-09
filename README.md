@@ -34,12 +34,11 @@ Alertas Visuais e Sonoros:
 - Clone o repositório:
 
 bash
-Copiar código
 git clone https://github.com/vmaia0111/Sistema-de-Pesagem.git
+
 Crie um ambiente virtual (opcional, mas recomendado):
 
 bash
-Copiar código
 python -m venv venv
 Ative o ambiente virtual:
 
