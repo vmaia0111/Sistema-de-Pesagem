@@ -21,17 +21,17 @@ Alertas Visuais e Sonoros:
 --Seleção de Modelos: Permite que os operadores escolham o cliente e o produto para iniciar o processo de pesagem.
 
 1. Tecnologias Utilizadas
-Python 3.12: Linguagem principal de desenvolvimento.
-PyQt5: Para a construção da interface gráfica.
-SQLite: Banco de dados local para armazenamento de clientes e produtos.
-Serial: Comunicação via porta COM com a balança.
-Git: Controle de versão do projeto.
-Instalação
-Pré-requisitos
-Python 3.12 ou superior.
-Dependências do projeto (listadas em requirements.txt).
-Passo a passo
-Clone o repositório:
+- Python 3.12: Linguagem principal de desenvolvimento.
+- PyQt5: Para a construção da interface gráfica.
+- SQLite: Banco de dados local para armazenamento de clientes e produtos.
+- Serial: Comunicação via porta COM com a balança.
+- Git: Controle de versão do projeto.
+- Instalação
+- Pré-requisitos
+- Python 3.12 ou superior.
+- Dependências do projeto (listadas em requirements.txt).
+- Passo a passo
+- Clone o repositório:
 
 bash
 Copiar código
