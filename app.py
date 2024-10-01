@@ -1,9 +1,9 @@
+import re
 import sys
+import json  # Importar o módulo json
 from PyQt5 import QtWidgets, QtCore, QtGui
 from db import DatabaseManager  # Certifique-se de que o arquivo db.py contém a classe DatabaseManager
 import serial
-import serial.tools.list_ports
-import winsound  # Para o alerta sonoro
 
 # Classe LoginDialog para autenticação
 class LoginDialog(QtWidgets.QDialog):
@@ -34,12 +34,11 @@ class LoginDialog(QtWidgets.QDialog):
     def check_credentials(self):
         username = self.username_input.text()
         password = self.password_input.text()
-        
-        # Verificação simples de exemplo (substitua com a lógica real de autenticação)
+
         if username == 'admin' and password == 'admin123':
             self.user_role = 'admin'
             self.accept()
-        elif username == 'operador' and password == '1234':
+        elif username == '' and password == '':
             self.user_role = 'operador'
             self.accept()
         else:
@@ -50,17 +49,31 @@ class MainApp(QtWidgets.QMainWindow):
         super(MainApp, self).__init__()
         self.db = DatabaseManager()  # Inicialize a conexão com o banco de dados
         self.user_role = user_role  # Definir o papel do usuário
+        self.load_config()  # Carrega as configurações do arquivo JSON
         self.initUI()
         self.serialPort = None
+        self.arduinoPort = None
         self.selected_client = None
         self.selected_product = None
         self.min_weight = 0.0
         self.max_weight = 0.0
 
+    def load_config(self):
+        # Lê o arquivo config.json e carrega as portas configuradas
+        try:
+            with open('config.json', 'r') as config_file:
+                config = json.load(config_file)
+                self.balanca_port = config.get('balanca_port', '')
+                self.arduino_port = config.get('arduino_port', '')
+        except FileNotFoundError:
+            print("Arquivo de configuração não encontrado.")
+            self.balanca_port = ''
+            self.arduino_port = ''
+
     def initUI(self):
         self.setWindowTitle('Sistema de Pesagem')
         self.setGeometry(100, 100, 800, 600)
-        self.setWindowIcon(QtGui.QIcon('C:/Users/vmaia/OneDrive/Área de Trabalho/Prix/path_to_icon.png'))  # Ícone do aplicativo
+        self.setWindowIcon(QtGui.QIcon('C:/Users/vmaia/OneDrive/Área de Trabalho/Prix/path_to_icon.png'))
 
         # Configurando o layout principal
         self.centralWidget = QtWidgets.QWidget(self)
@@ -104,18 +117,18 @@ class MainApp(QtWidgets.QMainWindow):
         self.selectedInfoLabel.setStyleSheet("font-size: 18px; color: #8E44AD; margin-top: 20px;")
         self.weightTabLayout.addWidget(self.selectedInfoLabel)
 
-        # Layout Horizontal para a conexão com a porta COM
+        # Layout Horizontal para os botões de conexão
         portLayout = QtWidgets.QHBoxLayout()
 
-        self.portComboBox = QtWidgets.QComboBox(self)
-        self.portComboBox.addItems(self.get_available_ports())
-        self.portComboBox.setStyleSheet("padding: 10px; font-size: 16px;")
-        portLayout.addWidget(self.portComboBox)
-
-        self.connectButton = QtWidgets.QPushButton('Conectar Porta', self)
+        self.connectButton = QtWidgets.QPushButton('Conectar Balança', self)
         self.connectButton.setStyleSheet("background-color: #E67E22; color: white; padding: 10px; font-size: 16px;")
         self.connectButton.clicked.connect(self.start_serial_communication)
         portLayout.addWidget(self.connectButton)
+
+        self.arduinoConnectButton = QtWidgets.QPushButton('Conectar Arduino', self)
+        self.arduinoConnectButton.setStyleSheet("background-color: #27AE60; color: white; padding: 10px; font-size: 16px;")
+        self.arduinoConnectButton.clicked.connect(self.connect_to_arduino)
+        portLayout.addWidget(self.arduinoConnectButton)
 
         self.weightTabLayout.addLayout(portLayout)
 
@@ -208,6 +221,18 @@ class MainApp(QtWidgets.QMainWindow):
         self.selectButton.clicked.connect(self.select_product)
         self.modelsTabLayout.addWidget(self.selectButton)
 
+        # Mostrar botões "Editar" e "Excluir" apenas para administradores
+        if self.user_role == 'admin':
+            self.editButton = QtWidgets.QPushButton('Editar Produto', self)
+            self.editButton.setStyleSheet("background-color: #3498DB; color: white; padding: 10px; font-size: 16px;")
+            self.editButton.clicked.connect(self.edit_product)
+            self.modelsTabLayout.addWidget(self.editButton)
+
+            self.deleteButton = QtWidgets.QPushButton('Excluir Produto', self)
+            self.deleteButton.setStyleSheet("background-color: #E74C3C; color: white; padding: 10px; font-size: 16px;")
+            self.deleteButton.clicked.connect(self.delete_product)
+            self.modelsTabLayout.addWidget(self.deleteButton)
+
         self.tabs.addTab(self.modelsTab, "Modelos")
 
         self.show()
@@ -217,13 +242,9 @@ class MainApp(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.update_weight)
         self.timer.start(500)  # Tempo reduzido para melhorar a resposta
 
-    def get_available_ports(self):
-        ports = serial.tools.list_ports.comports()
-        return [port.device for port in ports]
-
     def start_serial_communication(self):
         try:
-            selected_port = self.portComboBox.currentText()
+            selected_port = self.balanca_port  # Usa a porta definida no arquivo JSON
             self.serialPort = serial.Serial(
                 port=selected_port,
                 baudrate=4800,
@@ -232,9 +253,26 @@ class MainApp(QtWidgets.QMainWindow):
                 stopbits=serial.STOPBITS_ONE,
                 timeout=1  # Timeout reduzido para melhorar a resposta
             )
-            QtWidgets.QMessageBox.information(self, 'Conexão', f"Conectado à {selected_port} com sucesso.")
+            QtWidgets.QMessageBox.information(self, 'Conexão', f"Conectado à balança na {selected_port} com sucesso.")
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, 'Erro', f"Erro ao conectar na balança: {e}")
+
+    def connect_to_arduino(self):
+        arduino_port = self.arduino_port  # Usa a porta definida no arquivo JSON
+        try:
+            self.arduinoPort = serial.Serial(
+                port=arduino_port,
+                baudrate=9600,  # Taxa de transmissão comum para Arduino
+                timeout=1
+            )
+            QtWidgets.QMessageBox.information(self, 'Conexão', f"Conectado ao Arduino na {arduino_port}.")
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, 'Erro', f"Erro ao conectar no Arduino: {e}")
+
+    def send_command_to_arduino(self, command):
+        if self.arduinoPort is not None and self.arduinoPort.is_open:
+            self.arduinoPort.write(f"{command}\n".encode())  # Enviar string simples com quebra de linha
+            print(f"Comando enviado ao Arduino: {command}")
 
     def add_client(self):
         client_name = self.clientNameInput.text()
@@ -264,23 +302,21 @@ class MainApp(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, 'Erro', 'Preencha todos os campos.')
 
     def update_client_list(self):
-        """Atualiza a lista de clientes no ComboBox da aba de modelos e cadastro de produto"""
         self.clientComboBox.clear()
         if hasattr(self, 'clientComboBoxProduct'):
             self.clientComboBoxProduct.clear()
         clientes = self.db.get_clientes()
         for cliente in clientes:
-            self.clientComboBox.addItem(cliente[1], cliente[0])  # Adiciona o nome e ID do cliente
+            self.clientComboBox.addItem(cliente[1], cliente[0])
             if hasattr(self, 'clientComboBoxProduct'):
                 self.clientComboBoxProduct.addItem(cliente[1], cliente[0])
 
     def update_product_list(self):
-        """Atualiza a lista de produtos com base no cliente selecionado"""
         self.productComboBox.clear()
-        selected_client_id = self.clientComboBox.currentData()  # Pega o ID do cliente selecionado
+        selected_client_id = self.clientComboBox.currentData()
         produtos = self.db.get_produtos_by_cliente(selected_client_id)
         for produto in produtos:
-            self.productComboBox.addItem(produto[1], produto[0])  # Adiciona o nome e ID do produto
+            self.productComboBox.addItem(produto[1], produto[0])
 
     def select_product(self):
         self.selected_client = self.clientComboBox.currentText()
@@ -296,43 +332,124 @@ class MainApp(QtWidgets.QMainWindow):
         else:
             QtWidgets.QMessageBox.warning(self, 'Erro', 'Selecione um cliente e produto.')
 
+    def edit_product(self):
+        # Obtém os dados do produto selecionado
+        selected_client_id = self.clientComboBox.currentData()
+        selected_product_name = self.productComboBox.currentText()
+
+        # Janela de diálogo para editar produto
+        if selected_client_id and selected_product_name:
+            produto = self.db.get_produto_by_name(selected_product_name)
+            if produto:
+                novo_nome, ok = QtWidgets.QInputDialog.getText(self, "Editar Produto", "Novo Nome do Produto:", QtWidgets.QLineEdit.Normal, produto[2])
+                novo_peso_min, ok_min = QtWidgets.QInputDialog.getDouble(self, "Editar Produto", "Novo Peso Mínimo:", produto[3], 0, 10000, 3)
+                novo_peso_max, ok_max = QtWidgets.QInputDialog.getDouble(self, "Editar Produto", "Novo Peso Máximo:", produto[4], 0, 10000, 3)
+
+                if ok and ok_min and ok_max:
+                    self.db.update_produto(produto[0], novo_nome, novo_peso_min, novo_peso_max)
+                    QtWidgets.QMessageBox.information(self, "Sucesso", "Produto atualizado com sucesso!")
+                    self.update_product_list()
+                else:
+                    QtWidgets.QMessageBox.warning(self, "Erro", "Edição cancelada ou dados inválidos.")
+        else:
+            QtWidgets.QMessageBox.warning(self, 'Erro', 'Selecione um produto para editar.')
+
+    def delete_product(self):
+        selected_client_id = self.clientComboBox.currentData()
+        selected_product_name = self.productComboBox.currentText()
+
+        if selected_client_id and selected_product_name:
+            confirmation = QtWidgets.QMessageBox.question(self, 'Confirmação', f'Tem certeza de que deseja excluir o produto "{selected_product_name}"?',
+                                                          QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            if confirmation == QtWidgets.QMessageBox.Yes:
+                self.db.delete_produto(selected_client_id, selected_product_name)
+                QtWidgets.QMessageBox.information(self, "Sucesso", "Produto excluído com sucesso!")
+                self.update_product_list()
+        else:
+            QtWidgets.QMessageBox.warning(self, 'Erro', 'Selecione um produto para excluir.')
+
     def read_weight_from_serial(self):
         try:
             if self.serialPort is not None and self.serialPort.is_open:
-                raw_data = self.serialPort.readline()
-                cleaned_data = raw_data.decode('utf-8').strip().replace('\x02', '').split('\r')[0]
-                if cleaned_data:  # Verifica se os dados não estão vazios
-                    return float(cleaned_data)
+                raw_data = self.serialPort.read(60)  # Ler até 60 bytes
+                print(f"Dados brutos recebidos: {raw_data}")
+                if raw_data:  # Verifica se algum dado foi recebido
+                    if len(raw_data) > 15:
+                        raw_data = raw_data[15:]  # Ignora os primeiros 15 bytes
+                    return self.process_data(raw_data)
                 else:
-                    return 0.0  # Retorna 0 quando o peso é removido (dados vazios)
+                    print("Nenhum dado recebido da balança.")
+                    return None
         except Exception as e:
             print(f"Erro ao ler peso: {e}")
-            return 0.0  # Retorna 0 em caso de erro
+        return None
+
+    def process_data(self, raw_data):
+        try:
+            decoded_data = raw_data.decode('latin1', errors='ignore').strip()
+            print(f"Dados decodificados: {decoded_data}")
+
+            decoded_data = (decoded_data.replace('±', '1')
+                                        .replace('·', '7')
+                                        .replace('²', '2')
+                                        .replace('³', '3')
+                                        .replace('´', '4')
+                                        .replace('¸', '8'))
+                                        
+            print(f"Dados corrigidos: {decoded_data}")
+
+            cleaned_data = re.sub(r'[^0-9.-]', '', decoded_data)
+            print(f"Dados limpos: {cleaned_data}")
+
+            numeric_pattern = re.findall(r'[0-9]+(?:\.[0-9]+)?', cleaned_data)
+
+            if numeric_pattern:
+                print(f"Números capturados: {numeric_pattern}")
+
+                final_number = None
+                for num in numeric_pattern:
+                    if '.' in num:
+                        final_number = num
+                        break
+
+                if not final_number:
+                    final_number = max(numeric_pattern, key=len)
+
+                print(f"Peso capturado: {final_number} Kg")
+                return float(final_number)
+            else:
+                print("Nenhum número válido encontrado.")
+                return 0.0
+        except Exception as e:
+            print(f"Erro no processamento dos dados: {e}")
+            return 0.0
 
     def update_weight(self):
         weight = self.read_weight_from_serial()
-        if weight is not None:
-            self.label.setText(f'Peso: {weight:.3f} Kg')
-    
-            # Verificação de peso e aviso visual e sonoro
+
+        if weight is not None and weight > 0:
+            # Formata o peso para ter sempre três dígitos após o ponto
+            formatted_weight = f'{weight:.3f}'
+            self.label.setText(f'Peso: {formatted_weight} Kg')
+
             if weight < self.min_weight or weight > self.max_weight:
                 self.statusLabel.setText("Status: PESO FORA DO INTERVALO!")
                 self.statusLabel.setStyleSheet("color: red; font-size: 20px; background-color: yellow; border: 2px solid red;")
                 self.label.setStyleSheet("color: red; font-size: 40px; background-color: yellow; border: 2px solid red;")
-                self.play_warning_sound()
-            elif weight == 0.0:  # Quando o peso é removido (zera)
-                self.label.setText('Peso: 0.000 Kg')
-                self.statusLabel.setText("Status: AGUARDANDO PESAGEM")
-                self.statusLabel.setStyleSheet("color: blue; font-size: 20px; background-color: lightgray; border: none;")
-                self.label.setStyleSheet("color: blue; font-size: 40px; background-color: lightgray; border: none;")
+
+                self.send_command_to_arduino("LIGAR")
             else:
                 self.statusLabel.setText("Status: PESO DENTRO DO INTERVALO")
                 self.statusLabel.setStyleSheet("color: green; font-size: 20px; background-color: lightgreen; border: 2px solid green;")
                 self.label.setStyleSheet("color: green; font-size: 40px; background-color: lightgreen; border: 2px solid green;")
 
-    def play_warning_sound(self):
-        """Emite som de alerta quando o peso está fora do intervalo."""
-        winsound.Beep(1000, 2000)  # Frequência de 1000 Hz por 2 segundos
+                self.send_command_to_arduino("DESLIGAR")
+        else:
+            self.label.setText('Peso: 0.000 Kg')  # Exibe sempre com 3 dígitos após o ponto
+            self.statusLabel.setText("Status: AGUARDANDO PESAGEM")
+            self.statusLabel.setStyleSheet("color: blue; font-size: 20px; background-color: lightgray; border: none;")
+            self.label.setStyleSheet("color: blue; font-size: 40px; background-color: lightgray; border: none;")
+            self.send_command_to_arduino("DESLIGAR")
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
